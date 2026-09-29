@@ -57,7 +57,7 @@ func TestLoadGarageServiceConfiguration(t *testing.T) {
 	if !ok {
 		t.Fatal("garage service missing")
 	}
-	if garage.Image != "docker.io/dxflrs/garage:v2.3.0" || garage.Port != 3900 || garage.RoutePort != 3900 {
+	if garage.Image != "docker.io/dxflrs/garage:v2.3.0" || garage.Port != 3900 || !garage.DirectInternalDNS {
 		t.Fatalf("unexpected Garage runtime configuration: %#v", garage)
 	}
 	if garage.Environment["GARAGE_DEFAULT_ACCESS_KEY"] != garage.Binding.Credentials["access_key_id"] {

@@ -14,7 +14,7 @@ The static demo password is intentionally shared across PostgreSQL instances. Th
 
 ## Garage MVP behavior
 
-Garage is configured as an ephemeral, single-node S3-compatible service using the `dxflrs/garage:v2.3.0` Docker image. The service YAML provides a runtime command that writes the Garage TOML config, uses Garage's `--single-node --default-bucket` setup, and returns the configured static S3 endpoint, bucket, access key and secret key in each binding.
+Garage is configured as an ephemeral, single-node S3-compatible service using the `dxflrs/garage:v2.3.0` Docker image. It uses direct `apps.internal` app DNS with a TCP/3900 network policy (not an HTTP route). The service YAML provides a runtime command that writes the Garage TOML config, uses Garage's `--single-node --default-bucket` setup, and returns the configured static S3 endpoint, bucket, access key and secret key in each binding.
 
 The Garage metadata and data directories currently live in `/tmp` in the app container; CF restarts, restaging, or replacement erase the object data. All instances use the same configured demonstration credentials and bucket name. This is for labs and demos only, not production. The app is reachable on TCP 3900 using the configured internal route domain.
 

@@ -13,22 +13,23 @@ type File struct {
 }
 
 type Service struct {
-	ID               string            `yaml:"id"`
-	Name             string            `yaml:"name"`
-	Description      string            `yaml:"description"`
-	Bindable         bool              `yaml:"bindable"`
-	Tags             []string          `yaml:"tags"`
-	Image            string            `yaml:"image"`
-	Port             int               `yaml:"port"`
-	HostnameTemplate string            `yaml:"hostname_template"`
-	InternalDomain   string            `yaml:"internal_domain"`
-	MemoryMB         int               `yaml:"memory_mb"`
-	DiskMB           int               `yaml:"disk_mb"`
-	Environment      map[string]string `yaml:"environment"`
-	Command          string            `yaml:"command"`
-	RoutePort        int               `yaml:"route_port"`
-	Plans            []Plan            `yaml:"plans"`
-	Binding          Binding           `yaml:"binding"`
+	ID                string            `yaml:"id"`
+	Name              string            `yaml:"name"`
+	Description       string            `yaml:"description"`
+	Bindable          bool              `yaml:"bindable"`
+	Tags              []string          `yaml:"tags"`
+	Image             string            `yaml:"image"`
+	Port              int               `yaml:"port"`
+	HostnameTemplate  string            `yaml:"hostname_template"`
+	InternalDomain    string            `yaml:"internal_domain"`
+	DirectInternalDNS bool              `yaml:"direct_internal_dns"`
+	MemoryMB          int               `yaml:"memory_mb"`
+	DiskMB            int               `yaml:"disk_mb"`
+	Environment       map[string]string `yaml:"environment"`
+	Command           string            `yaml:"command"`
+	RoutePort         int               `yaml:"route_port"`
+	Plans             []Plan            `yaml:"plans"`
+	Binding           Binding           `yaml:"binding"`
 }
 
 type Plan struct {
@@ -60,6 +61,9 @@ func Load(r io.Reader) (*File, error) {
 		}
 		if service.RoutePort < 0 || service.RoutePort > 65535 {
 			return nil, fmt.Errorf("service %q has invalid route_port", service.ID)
+		}
+		if service.DirectInternalDNS && strings.TrimSpace(service.InternalDomain) == "" {
+			return nil, fmt.Errorf("service %q requires internal_domain when direct_internal_dns is enabled", service.ID)
 		}
 		if serviceIDs[service.ID] {
 			return nil, fmt.Errorf("duplicate service id %q", service.ID)

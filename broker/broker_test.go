@@ -85,6 +85,9 @@ func (f *fakeCAPI) ForgetBinding(_ context.Context, serviceAppGUID, bindingGUID 
 	return nil
 }
 func (f *fakeCAPI) ServiceHost(_ context.Context, app *resource.App, service config.Service) (string, error) {
+	if service.DirectInternalDNS {
+		return strings.ReplaceAll(service.HostnameTemplate, "{{.AppName}}", app.Name+"."+service.InternalDomain), nil
+	}
 	return strings.ReplaceAll(service.HostnameTemplate, "{{.RouteHost}}", app.Name+".apps.internal"), nil
 }
 
@@ -170,6 +173,29 @@ func TestBindAndUnbindUseStaticCredentialsAndPolicy(t *testing.T) {
 	}
 	if cf.policies["client-app-guid:postgres-app-guid:5432"] {
 		t.Fatalf("policy was not removed: %#v", cf.policies)
+	}
+}
+
+func TestGarageBindUsesDirectInternalDNSAndTCPEndpoint(t *testing.T) {
+	broker, cf := testBroker(t)
+	app := &resource.App{Name: "cfe-garage-instance-123", State: "STARTED", Resource: resource.Resource{GUID: "garage-app-guid"}}
+	cf.apps[app.Name] = app
+	handler := Handler(broker, "", "")
+	body := `{"service_id":"garage","plan_id":"garage-ephemeral","bind_resource":{"app_guid":"client-app-guid"}}`
+	response := request(t, handler, http.MethodPut, "/v2/service_instances/instance-123/service_bindings/binding-garage", body)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("bind status = %d, body = %s", response.Code, response.Body)
+	}
+	var result bindingResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	wantEndpoint := "http://cfe-garage-instance-123.apps.internal:3900"
+	if result.Credentials["endpoint"] != wantEndpoint || result.Credentials["uri"] != wantEndpoint {
+		t.Fatalf("Garage endpoints = endpoint %v, uri %v; want %s", result.Credentials["endpoint"], result.Credentials["uri"], wantEndpoint)
+	}
+	if !cf.policies["client-app-guid:garage-app-guid:3900"] {
+		t.Fatalf("Garage TCP/3900 policy was not installed: %#v", cf.policies)
 	}
 }
 
