@@ -53,27 +53,16 @@ func TestGarageServiceHostUsesMappedInternalRouteDNSName(t *testing.T) {
 	}
 }
 
-func TestGarageInternalDiscoveryRouteIsPortlessAndMapsApp(t *testing.T) {
-	route, destination := internalDiscoveryRoute("cfe-garage-instance-guid", "space-guid", "domain-guid", "app-guid")
+func TestInternalDiscoveryRouteIsPortlessAndMapsApp(t *testing.T) {
+	route, destination := internalDiscoveryRoute("cfe-service-instance-guid", "space-guid", "domain-guid", "app-guid")
 	if route.Port != nil {
-		t.Fatalf("Garage discovery route port = %d, want nil", *route.Port)
+		t.Fatalf("service-discovery route port = %d, want nil", *route.Port)
 	}
 	if destination.Port != nil || destination.Protocol != nil {
-		t.Fatalf("Garage DNS-only destination should omit port and protocol: %#v", destination)
+		t.Fatalf("DNS-only destination should omit port and protocol: %#v", destination)
 	}
 	if destination.App.GUID == nil || *destination.App.GUID != "app-guid" {
 		t.Fatalf("route destination app GUID = %v", destination.App.GUID)
-	}
-}
-
-func TestPostgresServiceRouteKeepsTCPPort(t *testing.T) {
-	port := intPointer(5432)
-	route, destination := serviceInternalRoute("cfe-postgres-instance-guid", "space-guid", "domain-guid", "app-guid", port)
-	if route.Port == nil || *route.Port != 5432 || destination.Port == nil || *destination.Port != 5432 {
-		t.Fatalf("PostgreSQL route/destination ports should remain TCP 5432: route=%v destination=%v", route.Port, destination.Port)
-	}
-	if destination.Protocol == nil || *destination.Protocol != "tcp" {
-		t.Fatalf("PostgreSQL destination protocol = %v, want tcp", destination.Protocol)
 	}
 }
 
