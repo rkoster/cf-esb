@@ -1,0 +1,22 @@
+applications:
+  - name: cf-esb
+    memory: 128M
+    disk_quota: 256M
+    instances: 1
+    buildpacks:
+      - go_buildpack
+    command: ./bin/cf-esb
+    env:
+      GO_INSTALL_PACKAGE_SPEC: ./cmd/cf-esb
+      SERVICES_CONFIG: config/services.yml
+      CF_API_URL: ((cf_api_url))
+      CF_LOGIN_URL: ((cf_login_url))
+      CF_UAA_URL: ((cf_uaa_url))
+      CF_CLIENT_ID: ((cf_client_id))
+      CF_CLIENT_SECRET: ((cf_client_secret))
+      CF_ORG: ((cf_org))
+      CF_INSTANCE_SPACE: ((cf_instance_space))
+      CF_INSTANCE_SPACE_GUID: ((cf_instance_space_guid))
+      CF_SKIP_TLS_VALIDATION: ((cf_skip_tls_validation))
+      BROKER_USERNAME: ((broker_username))
+      BROKER_PASSWORD: ((broker_password))

@@ -1,0 +1,9 @@
+.git
+.devbox
+devbox.lock
+devbox.json
+*.test
+coverage.out
+.secrets
+scripts/
+nix-*/

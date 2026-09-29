@@ -1,0 +1,62 @@
+{
+  "lockfile_version": "1",
+  "packages": {
+    "github:NixOS/nixpkgs/nixpkgs-unstable": {
+      "last_modified": "2026-09-18T09:35:58Z",
+      "resolved": "github:NixOS/nixpkgs/0a3468a402c449992505b6a9fc5b06580141b750?lastModified=1789724158&narHash=sha256-nlKgrm0dsVhOSopKheVBCcOpiIticufPPVLdVOI0euA%3D"
+    },
+    "go@1.24": {
+      "last_modified": "2026-02-23T15:40:43Z",
+      "resolved": "github:NixOS/nixpkgs/80d901ec0377e19ac3f7bb8c035201e2e098cc97#go_1_24",
+      "source": "devbox-search",
+      "version": "1.24.13",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/xnd476nfyfvwcw88zsn1f209j6lb3wjf-go-1.24.13",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/xnd476nfyfvwcw88zsn1f209j6lb3wjf-go-1.24.13"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/s6i249vg8halwzs8xgk2d9pwsz03qifv-go-1.24.13",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/s6i249vg8halwzs8xgk2d9pwsz03qifv-go-1.24.13"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/c0c7z7mad47pn5c1n5w6m6yqmqmgrzg1-go-1.24.13",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/c0c7z7mad47pn5c1n5w6m6yqmqmgrzg1-go-1.24.13"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/sqcn3z4zax0anz48ymwfqs2dp7q6vhqy-go-1.24.13",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/sqcn3z4zax0anz48ymwfqs2dp7q6vhqy-go-1.24.13"
+        }
+      }
+    },
+    "ruby": {
+      "plugin_version": "0.0.2",
+      "resolved": "github:NixOS/nixpkgs/0a3468a402c449992505b6a9fc5b06580141b750?narHash=sha256-nlKgrm0dsVhOSopKheVBCcOpiIticufPPVLdVOI0euA%3D#ruby",
+      "source": "nixpkg"
+    }
+  }
+}

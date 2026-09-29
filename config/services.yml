@@ -1,0 +1,27 @@
+services:
+  - id: postgres
+    name: PostgreSQL
+    description: Ephemeral PostgreSQL database running as a Cloud Foundry app.
+    bindable: true
+    tags: [postgresql, database, ephemeral]
+    image: docker.io/library/postgres:17
+    hostname_template: "{{.RouteHost}}"
+    internal_domain: apps.internal
+    port: 5432
+    memory_mb: 1024
+    disk_mb: 2048
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: cf-esb-demo-password
+    plans:
+      - id: ephemeral
+        name: ephemeral
+        description: An ephemeral PostgreSQL instance for development and demos.
+        free: true
+    binding:
+      credentials:
+        database: postgres
+        username: postgres
+        password: cf-esb-demo-password
+      uri_template: postgres://postgres:cf-esb-demo-password@{{.Host}}:{{.Port}}/postgres?sslmode=disable

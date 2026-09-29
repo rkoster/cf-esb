@@ -1,0 +1,5 @@
+/bin/
+/vendor/
+/coverage.out
+/.secrets
+/nix-*/
