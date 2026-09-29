@@ -14,9 +14,9 @@ The static demo password is intentionally shared across PostgreSQL instances. Th
 
 ## Garage MVP behavior
 
-Garage is configured as an ephemeral, single-node S3-compatible service using the `dxflrs/garage:v2.3.0` Docker image. It uses direct `apps.internal` app DNS with a TCP/3900 network policy (not an HTTP route). The service YAML provides a runtime command that writes the Garage TOML config, uses Garage's `--single-node --default-bucket` setup, and returns the configured static S3 endpoint, bucket, access key and secret key in each binding.
+Garage is configured as an ephemeral, single-node S3-compatible service using the `dxflrs/garage:v2.3.0` Docker image. Its `apps.internal` hostname is resolved by BOSH DNS through the Service Discovery Controller to the app's Silk overlay IP. CF Networking's app-to-app policy allows direct container-to-container L3 TCP traffic on port 3900; the data path does not pass through Gorouter and Garage does not get an HTTP route. The service YAML provides a runtime command that writes the Garage TOML config, uses Garage's `--single-node --default-bucket` setup, and returns the configured static S3 endpoint, bucket, access key and secret key in each binding.
 
-The Garage metadata and data directories currently live in `/tmp` in the app container; CF restarts, restaging, or replacement erase the object data. All instances use the same configured demonstration credentials and bucket name. This is for labs and demos only, not production. The app is reachable on TCP 3900 using the configured internal route domain.
+The Garage metadata and data directories currently live in `/tmp` in the app container; CF restarts, restaging, or replacement erase the object data. All instances use the same configured demonstration credentials and bucket name. This is for labs and demos only, not production. Bound clients use `http://<app-name>.apps.internal:3900` directly over the app-to-app TCP policy.
 
 ## Configuration
 
@@ -31,7 +31,7 @@ The Garage metadata and data directories currently live in `/tmp` in the app con
 | `CF_CLIENT_SECRET` | yes | UAA client secret |
 | `CF_ORG` | recommended | Organization containing the managed space; disambiguates same-named spaces |
 | `CF_SPACE` | yes | Space where the broker app is deployed |
-| `CF_INSTANCE_SPACE` | yes | Space where PostgreSQL service apps and internal routes are created |
+| `CF_INSTANCE_SPACE` | yes | Space where service apps are created |
 | `CF_SKIP_TLS_VALIDATION` | no | Set to `true` only for lab foundations with untrusted certificates. Applies to both CAPI and CF Networking calls. |
 | `BROKER_USERNAME` | yes for production | HTTP Basic username for OSB requests |
 | `BROKER_PASSWORD` | yes for production | HTTP Basic password for OSB requests |
@@ -76,5 +76,5 @@ curl -u "$BROKER_USERNAME:$BROKER_PASSWORD" "https://<broker-route>/v2/catalog"
 - Static credentials are shared by all instances of the configured service.
 - One app may have only one binding to a given service instance.
 - New service app Docker package/build staging uses OSB `202 Accepted`; callers must send `accepts_incomplete=true` and poll `last_operation` until the app is started.
-- The foundation must provide CF internal app service discovery (for `apps.internal`) to resolve the PostgreSQL endpoint.
+- The foundation must provide CF internal app service discovery (for `apps.internal`) to resolve service endpoints, and CF Networking to enforce app-to-app policies.
 - CAPI network policy endpoints require a foundation with CF Networking enabled and appropriate policy-server authorization.

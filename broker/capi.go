@@ -232,6 +232,10 @@ func (c *cloudFoundry) ServiceHost(ctx context.Context, app *resource.App, servi
 		if service.InternalDomain == "" {
 			return "", fmt.Errorf("service %q has direct_internal_dns enabled without internal_domain", service.ID)
 		}
+		// CF app-service-discovery resolves this name through BOSH DNS/SDC to
+		// the app's Silk overlay address. The separately-created network policy
+		// permits direct container-to-container L3 traffic to the service port;
+		// this path does not use Gorouter or create a CF route.
 		return strings.ReplaceAll(service.HostnameTemplate, "{{.AppName}}", app.Name+"."+service.InternalDomain), nil
 	}
 	if !strings.Contains(service.HostnameTemplate, "{{.RouteHost}}") {
