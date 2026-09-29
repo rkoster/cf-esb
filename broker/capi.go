@@ -237,16 +237,15 @@ func (c *cloudFoundry) ServiceHost(ctx context.Context, app *resource.App, servi
 	if !strings.Contains(service.HostnameTemplate, "{{.RouteHost}}") {
 		return service.HostnameTemplate, nil
 	}
-	return c.ensureInternalDiscoveryRoute(ctx, app, service)
+	return c.ensureRouteBackedServiceHost(ctx, app, service)
 }
 
-func (c *cloudFoundry) ensureInternalDiscoveryRoute(ctx context.Context, app *resource.App, service serviceconfig.Service) (string, error) {
+func (c *cloudFoundry) ensureRouteBackedServiceHost(ctx context.Context, app *resource.App, service serviceconfig.Service) (string, error) {
 	if service.InternalDomain == "" {
 		return "", fmt.Errorf("service %q requires internal_domain for app service discovery", service.ID)
 	}
-	// apps.internal routes register app names with CF service discovery. Garage
-	// uses a portless DNS registration; its TCP policy gates direct overlay data
-	// traffic instead of routing S3 requests through Gorouter.
+	// This path is for route-backed services. Garage uses a separate portless
+	// service-discovery route and direct overlay connections under its TCP policy.
 	options := cfclient.NewRouteListOptions()
 	options.AppGUIDs.EqualTo(app.GUID)
 	routes, err := c.client.Routes.ListAll(ctx, options)
@@ -279,10 +278,7 @@ func (c *cloudFoundry) ensureInternalDiscoveryRoute(ctx context.Context, app *re
 		return "", fmt.Errorf("CF internal domain %q was not found", service.InternalDomain)
 	}
 	host := app.Name
-	var port *int
-	if !service.DirectInternalDNS {
-		port = intPointer(service.Port)
-	}
+	port := intPointer(service.Port)
 	createRoute, destination := serviceInternalRoute(host, c.spaceGUID, internalDomain.GUID, app.GUID, port)
 	createdRoute, err := c.client.Routes.Create(ctx, createRoute)
 	if err != nil {
@@ -290,6 +286,52 @@ func (c *cloudFoundry) ensureInternalDiscoveryRoute(ctx context.Context, app *re
 	}
 	_, err = c.client.Routes.InsertDestinations(ctx, createdRoute.GUID, []*resource.RouteDestinationInsertOrReplace{destination})
 	if err != nil {
+		return "", err
+	}
+	return host + "." + service.InternalDomain, nil
+}
+
+func (c *cloudFoundry) ensureInternalDiscoveryRoute(ctx context.Context, app *resource.App, service serviceconfig.Service) (string, error) {
+	if service.InternalDomain == "" {
+		return "", fmt.Errorf("service %q requires internal_domain for app service discovery", service.ID)
+	}
+	options := cfclient.NewRouteListOptions()
+	options.AppGUIDs.EqualTo(app.GUID)
+	routes, err := c.client.Routes.ListAll(ctx, options)
+	if err != nil {
+		return "", err
+	}
+	domains, err := c.client.Domains.ListAll(ctx, nil)
+	if err != nil {
+		return "", err
+	}
+	for _, route := range routes {
+		if route.Host != app.Name || route.Relationships.Space.Data == nil || route.Relationships.Space.Data.GUID != c.spaceGUID || route.Port != nil || route.Relationships.Domain.Data == nil {
+			continue
+		}
+		for _, domain := range domains {
+			if domain.GUID == route.Relationships.Domain.Data.GUID && domain.Name == service.InternalDomain && domain.Internal {
+				return route.Host + "." + domain.Name, nil
+			}
+		}
+	}
+	var internalDomain *resource.Domain
+	for _, domain := range domains {
+		if domain.Name == service.InternalDomain && domain.Internal {
+			internalDomain = domain
+			break
+		}
+	}
+	if internalDomain == nil {
+		return "", fmt.Errorf("CF internal domain %q was not found", service.InternalDomain)
+	}
+	host := app.Name
+	createRoute, destination := internalDiscoveryRoute(host, c.spaceGUID, internalDomain.GUID, app.GUID)
+	createdRoute, err := c.client.Routes.Create(ctx, createRoute)
+	if err != nil {
+		return "", err
+	}
+	if _, err = c.client.Routes.InsertDestinations(ctx, createdRoute.GUID, []*resource.RouteDestinationInsertOrReplace{destination}); err != nil {
 		return "", err
 	}
 	return host + "." + service.InternalDomain, nil

@@ -66,17 +66,14 @@ func TestGarageInternalDiscoveryRouteIsPortlessAndMapsApp(t *testing.T) {
 	}
 }
 
-func TestPostgresRouteBackedTemplateRemainsAvailable(t *testing.T) {
-	app := &resource.App{Name: "cfe-postgres-instance-guid"}
-	service := config.Service{HostnameTemplate: "{{.RouteHost}}"}
-	host, err := directInternalServiceHost(app, config.Service{
-		HostnameTemplate: "{{.AppName}}", InternalDomain: "apps.internal", DirectInternalDNS: true,
-	})
-	if err != nil {
-		t.Fatal(err)
+func TestPostgresServiceRouteKeepsTCPPort(t *testing.T) {
+	port := intPointer(5432)
+	route, destination := serviceInternalRoute("cfe-postgres-instance-guid", "space-guid", "domain-guid", "app-guid", port)
+	if route.Port == nil || *route.Port != 5432 || destination.Port == nil || *destination.Port != 5432 {
+		t.Fatalf("PostgreSQL route/destination ports should remain TCP 5432: route=%v destination=%v", route.Port, destination.Port)
 	}
-	if host == "" || service.HostnameTemplate != "{{.RouteHost}}" {
-		t.Fatalf("unexpected direct/route-backed host selection: host=%q routeTemplate=%q", host, service.HostnameTemplate)
+	if destination.Protocol == nil || *destination.Protocol != "tcp" {
+		t.Fatalf("PostgreSQL destination protocol = %v, want tcp", destination.Protocol)
 	}
 }
 
