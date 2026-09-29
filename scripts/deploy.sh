@@ -37,8 +37,13 @@ cf push cf-esb -f manifest.yml --vars-file .secrets 2>&1 \
 CF_BROKER_PASSWORD="$BROKER_PASSWORD" \
   cf create-service-broker --update-if-exists "$BROKER_NAME" "$BROKER_USERNAME" "$BROKER_URL"
 
-# Keep the target org's marketplace visibility in sync; repeat runs skip this
-# when the offering is already globally accessible or enabled for this org.
-if ! cf service-access | awk -v org="$CF_ORG" '$1 == "PostgreSQL" && $2 == "ephemeral" && ($4 == "all" || $5 == org) { found=1 } END { exit !found }'; then
-  cf enable-service-access PostgreSQL -b "$BROKER_NAME" -o "$CF_ORG"
-fi
+# Keep all catalog offerings enabled for the configured org. The offering
+# names come from the packaged service YAML so adding an offering also enables
+# its marketplace access on the next deploy.
+while IFS= read -r offering; do
+  [[ -n "$offering" ]] || continue
+  if ! cf service-access | awk -v offering="$offering" -v org="$CF_ORG" \
+    '$1 == offering && ($3 == "all" || ($3 == "limited" && $4 == org)) { found=1 } END { exit !found }'; then
+    cf enable-service-access "$offering" -b "$BROKER_NAME" -o "$CF_ORG"
+  fi
+done < <(ruby -ryaml -e 'YAML.load_file("config/services.yml").fetch("services").each { |service| puts service.fetch("name") }')

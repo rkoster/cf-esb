@@ -132,6 +132,15 @@ func (c *cloudFoundry) CreateServiceApp(ctx context.Context, name, spaceGUID str
 	if err != nil {
 		return nil, err
 	}
+	var command *string
+	if service.Command != "" {
+		command = &service.Command
+	}
+	if command != nil {
+		if _, err := c.client.Processes.Update(ctx, process.GUID, &resource.ProcessUpdate{Command: command}); err != nil {
+			return nil, fmt.Errorf("configure command for %s: %w", name, err)
+		}
+	}
 	_, err = c.client.Processes.Update(ctx, process.GUID, &resource.ProcessUpdate{
 		HealthCheck: &resource.ProcessHealthCheck{Type: "process", Data: resource.ProcessHealthCheckData{}},
 	})
@@ -261,9 +270,13 @@ func (c *cloudFoundry) ServiceHost(ctx context.Context, app *resource.App, servi
 			return "", fmt.Errorf("CF internal domain %q was not found", service.InternalDomain)
 		}
 		host := app.Name
+		routePort := service.RoutePort
+		if routePort == 0 {
+			routePort = service.Port
+		}
 		createdRoute, err := c.client.Routes.Create(ctx, &resource.RouteCreate{
 			Host: &host,
-			Port: nil,
+			Port: intPointer(routePort),
 			Relationships: resource.RouteRelationships{
 				Space:  resource.ToOneRelationship{Data: &resource.Relationship{GUID: c.spaceGUID}},
 				Domain: resource.ToOneRelationship{Data: &resource.Relationship{GUID: internalDomain.GUID}},
@@ -274,6 +287,7 @@ func (c *cloudFoundry) ServiceHost(ctx context.Context, app *resource.App, servi
 		}
 		_, err = c.client.Routes.InsertDestinations(ctx, createdRoute.GUID, []*resource.RouteDestinationInsertOrReplace{{
 			App:      resource.RouteDestinationApp{GUID: &app.GUID},
+			Port:     intPointer(routePort),
 			Protocol: stringPointer("tcp"),
 		}})
 		if err != nil {

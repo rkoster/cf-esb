@@ -116,7 +116,7 @@ func TestCatalogListsConfiguredPostgresService(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
 		t.Fatal(err)
 	}
-	if len(result.Services) != 1 || result.Services[0].ID != "postgres" {
+	if len(result.Services) != 2 || result.Services[0].ID != "postgres" || result.Services[1].ID != "garage" {
 		t.Fatalf("catalog services = %#v", result.Services)
 	}
 }

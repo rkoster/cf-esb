@@ -1,6 +1,6 @@
 # CF-ESB
 
-CF-ESB is a lightweight Open Service Broker for ephemeral services running as Cloud Foundry apps. The initial catalog contains PostgreSQL. Service definitions and fixed credentials are packaged with the broker in `config/services.yml`; provisioning and binding state are derived from Cloud Foundry apps, credential bindings, routes, and network policies. The broker itself has no persistent store.
+CF-ESB is a lightweight Open Service Broker for ephemeral services running as Cloud Foundry apps. The initial catalog contains PostgreSQL and Garage. Service definitions and fixed credentials are packaged with the broker in `config/services.yml`; provisioning and binding state are derived from Cloud Foundry apps, credential bindings, routes, and network policies. The broker itself has no persistent store.
 
 ## PostgreSQL MVP behavior
 
@@ -11,6 +11,12 @@ CF-ESB is a lightweight Open Service Broker for ephemeral services running as Cl
 - PostgreSQL is exposed through a Cloud Foundry internal route only; it is not exposed on a public route.
 
 The static demo password is intentionally shared across PostgreSQL instances. This is suitable only for labs and development environments. Change it in `config/services.yml` before deploying in any environment where that default is not acceptable.
+
+## Garage MVP behavior
+
+Garage is configured as an ephemeral, single-node S3-compatible service using the `dxflrs/garage:v2.3.0` Docker image. The service YAML provides a runtime command that writes the Garage TOML config, uses Garage's `--single-node --default-bucket` setup, and returns the configured static S3 endpoint, bucket, access key and secret key in each binding.
+
+The Garage metadata and data directories currently live in `/tmp` in the app container; CF restarts, restaging, or replacement erase the object data. All instances use the same configured demonstration credentials and bucket name. This is for labs and demos only, not production. The app is reachable on TCP 3900 using the configured internal route domain.
 
 ## Configuration
 

@@ -235,6 +235,8 @@ func (b *Broker) bind(w http.ResponseWriter, r *http.Request) {
 	}
 	credentials := make(map[string]any, len(service.Binding.Credentials)+4)
 	for key, value := range service.Binding.Credentials {
+		value = strings.ReplaceAll(value, "{{.Host}}", host)
+		value = strings.ReplaceAll(value, "{{.Port}}", fmt.Sprint(service.Port))
 		credentials[key] = value
 	}
 	credentials["host"], credentials["hostname"], credentials["port"] = host, host, service.Port

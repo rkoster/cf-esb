@@ -25,3 +25,41 @@ services:
         username: postgres
         password: cf-esb-demo-password
       uri_template: postgres://postgres:cf-esb-demo-password@{{.Host}}:{{.Port}}/postgres?sslmode=disable
+
+  - id: garage
+    name: Garage
+    description: Ephemeral single-node S3-compatible object storage running as a Cloud Foundry app.
+    bindable: true
+    tags: [s3, object-storage, ephemeral]
+    image: docker.io/dxflrs/garage:v2.3.0
+    hostname_template: "{{.RouteHost}}"
+    internal_domain: apps.internal
+    port: 3900
+    route_port: 3900
+    memory_mb: 1024
+    disk_mb: 2048
+    environment:
+      GARAGE_CONFIG_FILE: /tmp/garage.toml
+      GARAGE_RPC_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      GARAGE_ADMIN_TOKEN: cf-esb-demo-garage-admin-token
+      GARAGE_DEFAULT_ACCESS_KEY: GK0123456789abcdef0123456789abcdef
+      GARAGE_DEFAULT_SECRET_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      GARAGE_DEFAULT_BUCKET: cf-esb
+    command: >-
+      /bin/sh -c 'mkdir -p /tmp/garage/meta /tmp/garage/data &&
+      printf "%s\n" "metadata_dir = \"/tmp/garage/meta\"" "data_dir = \"/tmp/garage/data\"" "db_engine = \"sqlite\"" "replication_factor = 1" "rpc_bind_addr = \"[::]:3901\"" "rpc_public_addr = \"127.0.0.1:3901\"" "rpc_secret = \"$GARAGE_RPC_SECRET\"" "[s3_api]" "api_bind_addr = \"[::]:3900\"" "s3_region = \"garage\"" "[admin]" "api_bind_addr = \"127.0.0.1:3903\"" "admin_token = \"$GARAGE_ADMIN_TOKEN\"" > /tmp/garage.toml &&
+      exec /garage server --single-node --default-bucket'
+    plans:
+      - id: garage-ephemeral
+        name: ephemeral
+        description: A single-node ephemeral S3-compatible object store for development and demos.
+        free: true
+    binding:
+      credentials:
+        access_key_id: GK0123456789abcdef0123456789abcdef
+        secret_access_key: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+        bucket: cf-esb
+        region: garage
+        endpoint: http://{{.Host}}:{{.Port}}
+        use_path_style: "true"
+      uri_template: http://{{.Host}}:{{.Port}}
