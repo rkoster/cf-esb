@@ -447,12 +447,8 @@ func (c *cloudFoundry) RememberBinding(ctx context.Context, serviceAppGUID, bind
 	if metadata == nil {
 		metadata = &resource.Metadata{}
 	}
-	annotations := make(map[string]*string, len(metadata.Annotations)+1)
-	for key, value := range metadata.Annotations {
-		annotations[key] = value
-	}
-	annotations[bindingAnnotationKey(bindingGUID)] = &clientAppGUID
-	_, err = c.client.Applications.Update(ctx, serviceAppGUID, &resource.AppUpdate{Metadata: &resource.Metadata{Labels: metadata.Labels, Annotations: annotations}})
+	annotations := rememberBindingAnnotation(metadata.Annotations, bindingGUID, clientAppGUID)
+	_, err = c.client.Applications.Update(ctx, serviceAppGUID, appMetadataUpdate(app, metadata.Labels, annotations))
 	return err
 }
 
@@ -467,14 +463,35 @@ func (c *cloudFoundry) ForgetBinding(ctx context.Context, serviceAppGUID, bindin
 	if app.Metadata == nil {
 		return nil
 	}
-	annotations := make(map[string]*string, len(app.Metadata.Annotations))
-	for key, value := range app.Metadata.Annotations {
+	annotations := forgetBindingAnnotation(app.Metadata.Annotations, bindingGUID)
+	_, err = c.client.Applications.Update(ctx, serviceAppGUID, appMetadataUpdate(app, app.Metadata.Labels, annotations))
+	return err
+}
+
+func rememberBindingAnnotation(existing map[string]*string, bindingGUID, clientAppGUID string) map[string]*string {
+	annotations := make(map[string]*string, len(existing)+1)
+	for key, value := range existing {
+		annotations[key] = value
+	}
+	annotations[bindingAnnotationKey(bindingGUID)] = &clientAppGUID
+	return annotations
+}
+
+func forgetBindingAnnotation(existing map[string]*string, bindingGUID string) map[string]*string {
+	annotations := make(map[string]*string, len(existing))
+	for key, value := range existing {
 		if key != bindingAnnotationKey(bindingGUID) {
 			annotations[key] = value
 		}
 	}
-	_, err = c.client.Applications.Update(ctx, serviceAppGUID, &resource.AppUpdate{Metadata: &resource.Metadata{Labels: app.Metadata.Labels, Annotations: annotations}})
-	return err
+	return annotations
+}
+
+func appMetadataUpdate(app *resource.App, labels, annotations map[string]*string) *resource.AppUpdate {
+	return &resource.AppUpdate{
+		Name:     app.Name,
+		Metadata: &resource.Metadata{Labels: labels, Annotations: annotations},
+	}
 }
 
 type networkPolicy struct {

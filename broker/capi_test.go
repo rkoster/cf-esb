@@ -37,3 +37,50 @@ func TestSetCurrentDropletRejectsEmptyDroplet(t *testing.T) {
 		t.Fatal("droplet assignment called for empty GUID")
 	}
 }
+
+func TestRememberBindingUpdatePreservesAppName(t *testing.T) {
+	app := &resource.App{
+		Name: "cfe-garage-instance-guid",
+		Metadata: &resource.Metadata{
+			Labels:      map[string]*string{"owner": stringPointer("cf-esb")},
+			Annotations: map[string]*string{"existing": stringPointer("value")},
+		},
+	}
+	annotations := rememberBindingAnnotation(app.Metadata.Annotations, "binding-guid", "client-app-guid")
+	update := appMetadataUpdate(app, app.Metadata.Labels, annotations)
+
+	if update.Name != app.Name {
+		t.Fatalf("RememberBinding update name = %q, want %q", update.Name, app.Name)
+	}
+	if got := *update.Metadata.Annotations[bindingAnnotationKey("binding-guid")]; got != "client-app-guid" {
+		t.Fatalf("remembered client app GUID = %q", got)
+	}
+	if got := *update.Metadata.Annotations["existing"]; got != "value" {
+		t.Fatalf("existing annotation changed to %q", got)
+	}
+}
+
+func TestForgetBindingUpdatePreservesAppName(t *testing.T) {
+	app := &resource.App{
+		Name: "cfe-garage-instance-guid",
+		Metadata: &resource.Metadata{
+			Labels: map[string]*string{"owner": stringPointer("cf-esb")},
+			Annotations: map[string]*string{
+				bindingAnnotationKey("binding-guid"): stringPointer("client-app-guid"),
+				"existing":                           stringPointer("value"),
+			},
+		},
+	}
+	annotations := forgetBindingAnnotation(app.Metadata.Annotations, "binding-guid")
+	update := appMetadataUpdate(app, app.Metadata.Labels, annotations)
+
+	if update.Name != app.Name {
+		t.Fatalf("ForgetBinding update name = %q, want %q", update.Name, app.Name)
+	}
+	if _, exists := update.Metadata.Annotations[bindingAnnotationKey("binding-guid")]; exists {
+		t.Fatal("ForgetBinding update retained the deleted binding annotation")
+	}
+	if got := *update.Metadata.Annotations["existing"]; got != "value" {
+		t.Fatalf("existing annotation changed to %q", got)
+	}
+}
