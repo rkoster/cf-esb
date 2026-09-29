@@ -229,83 +229,114 @@ func (c *cloudFoundry) ServiceHost(ctx context.Context, app *resource.App, servi
 		return "", fmt.Errorf("service %q has no hostname_template", service.ID)
 	}
 	if service.DirectInternalDNS {
-		if service.InternalDomain == "" {
-			return "", fmt.Errorf("service %q has direct_internal_dns enabled without internal_domain", service.ID)
+		if _, err := c.ensureInternalDiscoveryRoute(ctx, app, service); err != nil {
+			return "", err
 		}
-		// CF app-service-discovery resolves this name through BOSH DNS/SDC to
-		// the app's Silk overlay address. The separately-created network policy
-		// permits direct container-to-container L3 traffic to the service port;
-		// this path does not use Gorouter or create a CF route.
-		return strings.ReplaceAll(service.HostnameTemplate, "{{.AppName}}", app.Name+"."+service.InternalDomain), nil
+		return directInternalServiceHost(app, service)
 	}
 	if !strings.Contains(service.HostnameTemplate, "{{.RouteHost}}") {
 		return service.HostnameTemplate, nil
 	}
-	// Internal routes resolve to CF app containers without exposing the database
-	// through an external route. Reconcile the route from the app name each time,
-	// so routes remain derived solely from CAPI state.
-	routeHost := ""
-	routes, err := c.client.Routes.ListAll(ctx, nil)
+	return c.ensureInternalDiscoveryRoute(ctx, app, service)
+}
+
+func (c *cloudFoundry) ensureInternalDiscoveryRoute(ctx context.Context, app *resource.App, service serviceconfig.Service) (string, error) {
+	if service.InternalDomain == "" {
+		return "", fmt.Errorf("service %q requires internal_domain for app service discovery", service.ID)
+	}
+	// apps.internal routes register app names with CF service discovery. Garage
+	// uses a portless DNS registration; its TCP policy gates direct overlay data
+	// traffic instead of routing S3 requests through Gorouter.
+	options := cfclient.NewRouteListOptions()
+	options.AppGUIDs.EqualTo(app.GUID)
+	routes, err := c.client.Routes.ListAll(ctx, options)
+	if err != nil {
+		return "", err
+	}
+	domains, err := c.client.Domains.ListAll(ctx, nil)
 	if err != nil {
 		return "", err
 	}
 	for _, route := range routes {
-		if route.Host == app.Name && route.Relationships.Space.Data != nil && route.Relationships.Space.Data.GUID == c.spaceGUID && route.Relationships.Domain.Data != nil {
-			domains, err := c.client.Domains.ListAll(ctx, nil)
-			if err != nil {
-				return "", err
+		if route.Host != app.Name || route.Relationships.Space.Data == nil || route.Relationships.Space.Data.GUID != c.spaceGUID || route.Relationships.Domain.Data == nil {
+			continue
+		}
+		for _, domain := range domains {
+			if domain.GUID == route.Relationships.Domain.Data.GUID && domain.Name == service.InternalDomain && domain.Internal {
+				return route.Host + "." + domain.Name, nil
 			}
-			for _, domain := range domains {
-				if domain.GUID == route.Relationships.Domain.Data.GUID {
-					routeHost = route.Host + "." + domain.Name
-					break
-				}
-			}
+		}
+	}
+
+	var internalDomain *resource.Domain
+	for _, domain := range domains {
+		if domain.Name == service.InternalDomain && domain.Internal {
+			internalDomain = domain
 			break
 		}
 	}
-	if routeHost == "" {
-		domains, err := c.client.Domains.ListAll(ctx, nil)
-		if err != nil {
-			return "", err
-		}
-		var internalDomain *resource.Domain
-		for _, domain := range domains {
-			if domain.Name == service.InternalDomain {
-				internalDomain = domain
-				break
-			}
-		}
-		if internalDomain == nil {
-			return "", fmt.Errorf("CF internal domain %q was not found", service.InternalDomain)
-		}
-		host := app.Name
-		routePort := service.RoutePort
-		if routePort == 0 {
-			routePort = service.Port
-		}
-		createdRoute, err := c.client.Routes.Create(ctx, &resource.RouteCreate{
-			Host: &host,
-			Port: intPointer(routePort),
-			Relationships: resource.RouteRelationships{
-				Space:  resource.ToOneRelationship{Data: &resource.Relationship{GUID: c.spaceGUID}},
-				Domain: resource.ToOneRelationship{Data: &resource.Relationship{GUID: internalDomain.GUID}},
-			},
-		})
-		if err != nil {
-			return "", err
-		}
-		_, err = c.client.Routes.InsertDestinations(ctx, createdRoute.GUID, []*resource.RouteDestinationInsertOrReplace{{
-			App:      resource.RouteDestinationApp{GUID: &app.GUID},
-			Port:     intPointer(routePort),
-			Protocol: stringPointer("tcp"),
-		}})
-		if err != nil {
-			return "", err
-		}
-		routeHost = host + "." + service.InternalDomain
+	if internalDomain == nil {
+		return "", fmt.Errorf("CF internal domain %q was not found", service.InternalDomain)
 	}
-	return strings.ReplaceAll(service.HostnameTemplate, "{{.RouteHost}}", routeHost), nil
+	host := app.Name
+	var port *int
+	if !service.DirectInternalDNS {
+		port = intPointer(service.Port)
+	}
+	createRoute, destination := serviceInternalRoute(host, c.spaceGUID, internalDomain.GUID, app.GUID, port)
+	createdRoute, err := c.client.Routes.Create(ctx, createRoute)
+	if err != nil {
+		return "", err
+	}
+	_, err = c.client.Routes.InsertDestinations(ctx, createdRoute.GUID, []*resource.RouteDestinationInsertOrReplace{destination})
+	if err != nil {
+		return "", err
+	}
+	return host + "." + service.InternalDomain, nil
+}
+
+func internalDiscoveryRoute(host, spaceGUID, domainGUID, appGUID string) (*resource.RouteCreate, *resource.RouteDestinationInsertOrReplace) {
+	return &resource.RouteCreate{
+			Host: &host,
+			Port: nil,
+			Relationships: resource.RouteRelationships{
+				Space:  resource.ToOneRelationship{Data: &resource.Relationship{GUID: spaceGUID}},
+				Domain: resource.ToOneRelationship{Data: &resource.Relationship{GUID: domainGUID}},
+			},
+		}, &resource.RouteDestinationInsertOrReplace{
+			App: resource.RouteDestinationApp{GUID: &appGUID},
+		}
+}
+
+func serviceInternalRoute(host, spaceGUID, domainGUID, appGUID string, port *int) (*resource.RouteCreate, *resource.RouteDestinationInsertOrReplace) {
+	protocol := "tcp"
+	var protocolPointer *string
+	if port != nil {
+		protocolPointer = &protocol
+	}
+	return &resource.RouteCreate{
+			Host: &host,
+			Port: port,
+			Relationships: resource.RouteRelationships{
+				Space:  resource.ToOneRelationship{Data: &resource.Relationship{GUID: spaceGUID}},
+				Domain: resource.ToOneRelationship{Data: &resource.Relationship{GUID: domainGUID}},
+			},
+		}, &resource.RouteDestinationInsertOrReplace{
+			App:      resource.RouteDestinationApp{GUID: &appGUID},
+			Port:     port,
+			Protocol: protocolPointer,
+		}
+}
+
+func directInternalServiceHost(app *resource.App, service serviceconfig.Service) (string, error) {
+	if service.InternalDomain == "" {
+		return "", fmt.Errorf("service %q has direct_internal_dns enabled without internal_domain", service.ID)
+	}
+	// CF app-service-discovery resolves the mapped apps.internal route through
+	// BOSH DNS/SDC to the app's Silk overlay IP. The route is a DNS registration;
+	// the TCP app-to-app policy controls direct traffic to the configured port.
+	// Garage data requests do not go through Gorouter.
+	return strings.ReplaceAll(service.HostnameTemplate, "{{.AppName}}", app.Name+"."+service.InternalDomain), nil
 }
 
 func stringPointer(value string) *string { return &value }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/cloudfoundry-community/cf-esb/config"
 	"github.com/cloudfoundry/go-cfclient/v3/resource"
 )
 
@@ -35,6 +36,47 @@ func TestSetCurrentDropletRejectsEmptyDroplet(t *testing.T) {
 	}
 	if assigner.called {
 		t.Fatal("droplet assignment called for empty GUID")
+	}
+}
+
+func TestGarageServiceHostUsesMappedInternalRouteDNSName(t *testing.T) {
+	app := &resource.App{Name: "cfe-garage-instance-guid"}
+	service := config.Service{
+		ID: "garage", HostnameTemplate: "{{.AppName}}", InternalDomain: "apps.internal", DirectInternalDNS: true,
+	}
+	host, err := directInternalServiceHost(app, service)
+	if err != nil {
+		t.Fatalf("directInternalServiceHost() error = %v", err)
+	}
+	if want := "cfe-garage-instance-guid.apps.internal"; host != want {
+		t.Fatalf("host = %q, want %q", host, want)
+	}
+}
+
+func TestGarageInternalDiscoveryRouteIsPortlessAndMapsApp(t *testing.T) {
+	route, destination := internalDiscoveryRoute("cfe-garage-instance-guid", "space-guid", "domain-guid", "app-guid")
+	if route.Port != nil {
+		t.Fatalf("Garage discovery route port = %d, want nil", *route.Port)
+	}
+	if destination.Port != nil || destination.Protocol != nil {
+		t.Fatalf("Garage DNS-only destination should omit port and protocol: %#v", destination)
+	}
+	if destination.App.GUID == nil || *destination.App.GUID != "app-guid" {
+		t.Fatalf("route destination app GUID = %v", destination.App.GUID)
+	}
+}
+
+func TestPostgresRouteBackedTemplateRemainsAvailable(t *testing.T) {
+	app := &resource.App{Name: "cfe-postgres-instance-guid"}
+	service := config.Service{HostnameTemplate: "{{.RouteHost}}"}
+	host, err := directInternalServiceHost(app, config.Service{
+		HostnameTemplate: "{{.AppName}}", InternalDomain: "apps.internal", DirectInternalDNS: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if host == "" || service.HostnameTemplate != "{{.RouteHost}}" {
+		t.Fatalf("unexpected direct/route-backed host selection: host=%q routeTemplate=%q", host, service.HostnameTemplate)
 	}
 }
 

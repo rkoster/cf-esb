@@ -14,9 +14,9 @@ The static demo password is intentionally shared across PostgreSQL instances. Th
 
 ## Garage MVP behavior
 
-Garage is configured as an ephemeral, single-node S3-compatible service using the `dxflrs/garage:v2.3.0` Docker image. Its `apps.internal` hostname is resolved by BOSH DNS through the Service Discovery Controller to the app's Silk overlay IP. CF Networking's app-to-app policy allows direct container-to-container L3 TCP traffic on port 3900; the data path does not pass through Gorouter and Garage does not get an HTTP route. The service YAML provides a runtime command that writes the Garage TOML config, uses Garage's `--single-node --default-bucket` setup, and returns the configured static S3 endpoint, bucket, access key and secret key in each binding.
+Garage is configured as an ephemeral, single-node S3-compatible service using the `dxflrs/garage:v2.3.0` Docker image. CF maps a portless `apps.internal` route to the Garage app so BOSH DNS/Service Discovery Controller can resolve the hostname to its Silk overlay IP. CF Networking's app-to-app policy allows direct container-to-container L3 TCP traffic on port 3900; S3 data traffic does not pass through Gorouter. The service YAML provides a runtime command that writes the Garage TOML config, uses Garage's `--single-node --default-bucket` setup, and returns the configured static S3 endpoint, bucket, access key and secret key in each binding.
 
-The Garage metadata and data directories currently live in `/tmp` in the app container; CF restarts, restaging, or replacement erase the object data. All instances use the same configured demonstration credentials and bucket name. This is for labs and demos only, not production. Bound clients use `http://<app-name>.apps.internal:3900` directly over the app-to-app TCP policy.
+The Garage metadata and data directories currently live in `/tmp` in the app container; CF restarts, restaging, or replacement erase the object data. All instances use the same configured demonstration credentials and bucket name. This is for labs and demos only, not production. Bound clients use `http://<app-name>.apps.internal:3900` directly over the app-to-app TCP policy. The internal route only registers the DNS name; the domain must support portless HTTP routes, while TCP/3900 itself is app-to-app traffic.
 
 ## Configuration
 

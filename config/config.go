@@ -27,7 +27,6 @@ type Service struct {
 	DiskMB            int               `yaml:"disk_mb"`
 	Environment       map[string]string `yaml:"environment"`
 	Command           string            `yaml:"command"`
-	RoutePort         int               `yaml:"route_port"`
 	Plans             []Plan            `yaml:"plans"`
 	Binding           Binding           `yaml:"binding"`
 }
@@ -58,9 +57,6 @@ func Load(r io.Reader) (*File, error) {
 	for _, service := range file.Services {
 		if service.ID == "" || service.Name == "" || service.Image == "" || service.Port < 1 || service.Port > 65535 {
 			return nil, fmt.Errorf("service id, name, image, and valid port are required")
-		}
-		if service.RoutePort < 0 || service.RoutePort > 65535 {
-			return nil, fmt.Errorf("service %q has invalid route_port", service.ID)
 		}
 		if service.DirectInternalDNS && strings.TrimSpace(service.InternalDomain) == "" {
 			return nil, fmt.Errorf("service %q requires internal_domain when direct_internal_dns is enabled", service.ID)
