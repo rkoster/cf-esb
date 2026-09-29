@@ -66,6 +66,9 @@ func TestLoadGarageServiceConfiguration(t *testing.T) {
 	if garage.Environment["GARAGE_DEFAULT_SECRET_KEY"] != garage.Binding.Credentials["secret_access_key"] {
 		t.Fatal("Garage container secret and binding secret do not match")
 	}
+	if garage.Binding.Credentials["region"] != "us-east-1" || !strings.Contains(garage.Command, `s3_region = \"us-east-1\"`) {
+		t.Fatalf("Garage server and binding region must both be us-east-1: binding=%q command=%q", garage.Binding.Credentials["region"], garage.Command)
+	}
 }
 
 func TestLoadRejectsMissingBindingConfiguration(t *testing.T) {

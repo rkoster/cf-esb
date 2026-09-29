@@ -47,7 +47,7 @@ services:
       GARAGE_DEFAULT_BUCKET: cf-esb
     command: >-
       /bin/sh -c 'mkdir -p /tmp/garage/meta /tmp/garage/data &&
-      printf "%s\n" "metadata_dir = \"/tmp/garage/meta\"" "data_dir = \"/tmp/garage/data\"" "db_engine = \"sqlite\"" "replication_factor = 1" "rpc_bind_addr = \"[::]:3901\"" "rpc_public_addr = \"127.0.0.1:3901\"" "rpc_secret = \"$GARAGE_RPC_SECRET\"" "[s3_api]" "api_bind_addr = \"[::]:3900\"" "s3_region = \"garage\"" "[admin]" "api_bind_addr = \"127.0.0.1:3903\"" "admin_token = \"$GARAGE_ADMIN_TOKEN\"" > /tmp/garage.toml &&
+      printf "%s\n" "metadata_dir = \"/tmp/garage/meta\"" "data_dir = \"/tmp/garage/data\"" "db_engine = \"sqlite\"" "replication_factor = 1" "rpc_bind_addr = \"[::]:3901\"" "rpc_public_addr = \"127.0.0.1:3901\"" "rpc_secret = \"$GARAGE_RPC_SECRET\"" "[s3_api]" "api_bind_addr = \"[::]:3900\"" "s3_region = \"us-east-1\"" "[admin]" "api_bind_addr = \"127.0.0.1:3903\"" "admin_token = \"$GARAGE_ADMIN_TOKEN\"" > /tmp/garage.toml &&
       exec /garage server --single-node --default-bucket'
     plans:
       - id: garage-ephemeral
@@ -59,7 +59,7 @@ services:
         access_key_id: GK0123456789abcdef0123456789abcdef
         secret_access_key: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
         bucket: cf-esb
-        region: garage
+        region: us-east-1
         endpoint: http://{{.Host}}:{{.Port}}
         use_path_style: "true"
       uri_template: http://{{.Host}}:{{.Port}}
