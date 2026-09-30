@@ -132,20 +132,11 @@ func (c *cloudFoundry) CreateServiceApp(ctx context.Context, name, spaceGUID str
 	if err != nil {
 		return nil, err
 	}
-	var command *string
-	if service.Command != "" {
-		command = &service.Command
-	}
-	if command != nil {
-		if _, err := c.client.Processes.Update(ctx, process.GUID, &resource.ProcessUpdate{Command: command}); err != nil {
-			return nil, fmt.Errorf("configure command for %s: %w", name, err)
-		}
-	}
-	_, err = c.client.Processes.Update(ctx, process.GUID, &resource.ProcessUpdate{
-		HealthCheck: &resource.ProcessHealthCheck{Type: "process", Data: resource.ProcessHealthCheckData{}},
-	})
+	// Update the command and health check together. A later update with a nil
+	// command resets Docker apps to the image's default entrypoint.
+	_, err = c.client.Processes.Update(ctx, process.GUID, serviceProcessUpdate(service))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("configure process for %s: %w", name, err)
 	}
 	if service.MemoryMB > 0 || service.DiskMB > 0 {
 		scale := &resource.ProcessScale{}
@@ -160,6 +151,19 @@ func (c *cloudFoundry) CreateServiceApp(ctx context.Context, name, spaceGUID str
 		}
 	}
 	return app, nil
+}
+
+func serviceProcessUpdate(service serviceconfig.Service) *resource.ProcessUpdate {
+	var command *string
+	if service.Command != "" {
+		command = &service.Command
+	}
+	return &resource.ProcessUpdate{
+		Command: command,
+		HealthCheck: &resource.ProcessHealthCheck{
+			Type: "process", Data: resource.ProcessHealthCheckData{},
+		},
+	}
 }
 
 type currentDropletAssigner interface {

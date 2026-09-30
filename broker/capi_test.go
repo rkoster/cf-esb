@@ -39,6 +39,27 @@ func TestSetCurrentDropletRejectsEmptyDroplet(t *testing.T) {
 	}
 }
 
+func TestServiceProcessUpdatePreservesCustomCommandWithProcessHealthCheck(t *testing.T) {
+	service := config.Service{Command: "/bin/sh -c 'generate-config && exec /garage server'"}
+	update := serviceProcessUpdate(service)
+	if update.Command == nil || *update.Command != service.Command {
+		t.Fatalf("process command = %v, want %q", update.Command, service.Command)
+	}
+	if update.HealthCheck == nil || update.HealthCheck.Type != "process" {
+		t.Fatalf("process health check = %#v, want process", update.HealthCheck)
+	}
+}
+
+func TestServiceProcessUpdateKeepsImageDefaultWhenCommandIsEmpty(t *testing.T) {
+	update := serviceProcessUpdate(config.Service{})
+	if update.Command != nil {
+		t.Fatalf("process command = %q, want nil to preserve image default", *update.Command)
+	}
+	if update.HealthCheck == nil || update.HealthCheck.Type != "process" {
+		t.Fatalf("process health check = %#v, want process", update.HealthCheck)
+	}
+}
+
 func TestGarageServiceHostUsesMappedInternalRouteDNSName(t *testing.T) {
 	app := &resource.App{Name: "cfe-garage-instance-guid"}
 	service := config.Service{

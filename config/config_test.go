@@ -57,8 +57,11 @@ func TestLoadGarageServiceConfiguration(t *testing.T) {
 	if !ok {
 		t.Fatal("garage service missing")
 	}
-	if garage.Image != "docker.io/dxflrs/garage:v2.3.0" || garage.Port != 3900 || !garage.DirectInternalDNS {
+	if garage.Image != "ghcr.io/rkoster/cf-esb-garage:2.3.0" || garage.Port != 3900 || !garage.DirectInternalDNS {
 		t.Fatalf("unexpected Garage runtime configuration: %#v", garage)
+	}
+	if garage.Environment["GARAGE_CONFIG_FILE"] != "/etc/garage.toml" {
+		t.Fatalf("Garage config path = %q, want /etc/garage.toml", garage.Environment["GARAGE_CONFIG_FILE"])
 	}
 	if garage.Environment["GARAGE_DEFAULT_ACCESS_KEY"] != garage.Binding.Credentials["access_key_id"] {
 		t.Fatal("Garage container access key and binding access key do not match")
@@ -66,8 +69,8 @@ func TestLoadGarageServiceConfiguration(t *testing.T) {
 	if garage.Environment["GARAGE_DEFAULT_SECRET_KEY"] != garage.Binding.Credentials["secret_access_key"] {
 		t.Fatal("Garage container secret and binding secret do not match")
 	}
-	if garage.Binding.Credentials["region"] != "us-east-1" || !strings.Contains(garage.Command, `s3_region = \"us-east-1\"`) {
-		t.Fatalf("Garage server and binding region must both be us-east-1: binding=%q command=%q", garage.Binding.Credentials["region"], garage.Command)
+	if garage.Binding.Credentials["region"] != "us-east-1" {
+		t.Fatalf("Garage binding region = %q, want us-east-1", garage.Binding.Credentials["region"])
 	}
 }
 

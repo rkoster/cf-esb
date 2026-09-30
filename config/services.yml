@@ -31,7 +31,7 @@ services:
     description: Ephemeral single-node S3-compatible object storage running as a Cloud Foundry app.
     bindable: true
     tags: [s3, object-storage, ephemeral]
-    image: docker.io/dxflrs/garage:v2.3.0
+    image: ghcr.io/rkoster/cf-esb-garage:2.3.0
     hostname_template: "{{.AppName}}"
     internal_domain: apps.internal
     direct_internal_dns: true
@@ -39,16 +39,12 @@ services:
     memory_mb: 1024
     disk_mb: 2048
     environment:
-      GARAGE_CONFIG_FILE: /tmp/garage.toml
+      GARAGE_CONFIG_FILE: /etc/garage.toml
       GARAGE_RPC_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       GARAGE_ADMIN_TOKEN: cf-esb-demo-garage-admin-token
       GARAGE_DEFAULT_ACCESS_KEY: GK0123456789abcdef0123456789abcdef
       GARAGE_DEFAULT_SECRET_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       GARAGE_DEFAULT_BUCKET: cf-esb
-    command: >-
-      /bin/sh -c 'mkdir -p /tmp/garage/meta /tmp/garage/data &&
-      printf "%s\n" "metadata_dir = \"/tmp/garage/meta\"" "data_dir = \"/tmp/garage/data\"" "db_engine = \"sqlite\"" "replication_factor = 1" "rpc_bind_addr = \"[::]:3901\"" "rpc_public_addr = \"127.0.0.1:3901\"" "rpc_secret = \"$GARAGE_RPC_SECRET\"" "[s3_api]" "api_bind_addr = \"[::]:3900\"" "s3_region = \"us-east-1\"" "[admin]" "api_bind_addr = \"127.0.0.1:3903\"" "admin_token = \"$GARAGE_ADMIN_TOKEN\"" > /tmp/garage.toml &&
-      exec /garage server --single-node --default-bucket'
     plans:
       - id: garage-ephemeral
         name: ephemeral
