@@ -68,8 +68,8 @@ func Load(r io.Reader) (*File, error) {
 		if len(service.Plans) == 0 {
 			return nil, fmt.Errorf("service %q must define at least one plan", service.ID)
 		}
-		if len(service.Binding.Credentials) == 0 || strings.TrimSpace(service.Binding.URITemplate) == "" {
-			return nil, fmt.Errorf("service %q must define static binding credentials and uri_template", service.ID)
+		if strings.TrimSpace(service.Binding.URITemplate) == "" {
+			return nil, fmt.Errorf("service %q must define a binding uri_template", service.ID)
 		}
 		planIDs := map[string]bool{}
 		for _, plan := range service.Plans {

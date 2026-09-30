@@ -209,7 +209,7 @@ func TestBindAndUnbindUseStaticCredentialsAndPolicy(t *testing.T) {
 	}
 }
 
-func TestRedisBindReturnsAuthenticatedURIAndTCPPolicy(t *testing.T) {
+func TestRedisBindReturnsPlaintextURIWithoutCredentialsAndTCPPolicy(t *testing.T) {
 	broker, cf := testBroker(t)
 	app := &resource.App{Name: "cfe-redis-instance-123", State: "STARTED", Resource: resource.Resource{GUID: "redis-app-guid"}}
 	cf.apps[app.Name] = app
@@ -224,9 +224,12 @@ func TestRedisBindReturnsAuthenticatedURIAndTCPPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantHost := "cfe-redis-instance-123.apps.internal"
-	wantURI := "redis://:cf-esb-demo-redis-password@cfe-redis-instance-123.apps.internal:6379/0"
+	wantURI := "redis://cfe-redis-instance-123.apps.internal:6379/0"
 	if result.Credentials["host"] != wantHost || result.Credentials["port"] != float64(6379) || result.Credentials["uri"] != wantURI {
 		t.Fatalf("Redis binding credentials = %#v", result.Credentials)
+	}
+	if _, hasPassword := result.Credentials["password"]; hasPassword {
+		t.Fatalf("Redis binding unexpectedly returned a password: %#v", result.Credentials)
 	}
 	if !cf.policies["client-app-guid:redis-app-guid:6379"] {
 		t.Fatalf("Redis TCP/6379 policy was not installed: %#v", cf.policies)

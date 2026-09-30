@@ -37,19 +37,16 @@ services:
     port: 6379
     memory_mb: 512
     disk_mb: 1024
-    environment:
-      REDIS_PASSWORD: cf-esb-demo-redis-password
     command: >-
-      redis-server --bind 0.0.0.0 --protected-mode yes --requirepass "$REDIS_PASSWORD" --save "" --appendonly no
+      redis-server --bind 0.0.0.0 --protected-mode yes --save "" --appendonly no
     plans:
       - id: redis-ephemeral
         name: ephemeral
         description: An ephemeral Redis instance for development and demos.
         free: true
     binding:
-      credentials:
-        password: cf-esb-demo-redis-password
-      uri_template: redis://:cf-esb-demo-redis-password@{{.Host}}:{{.Port}}/0
+      credentials: {}
+      uri_template: redis://{{.Host}}:{{.Port}}/0
 
   - id: garage
     name: Garage

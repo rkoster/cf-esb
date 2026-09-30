@@ -94,11 +94,11 @@ func TestLoadRedisServiceConfiguration(t *testing.T) {
 	if len(redis.Plans) != 1 || redis.Plans[0].ID != "redis-ephemeral" {
 		t.Fatalf("unexpected Redis plan configuration: %#v", redis.Plans)
 	}
-	if redis.Environment["REDIS_PASSWORD"] != redis.Binding.Credentials["password"] {
-		t.Fatal("Redis server password and binding password do not match")
+	if len(redis.Environment) != 0 || len(redis.Binding.Credentials) != 0 {
+		t.Fatalf("Redis should not configure auth credentials: environment=%#v binding=%#v", redis.Environment, redis.Binding.Credentials)
 	}
-	if !strings.Contains(redis.Command, `--requirepass "$REDIS_PASSWORD"`) || !strings.Contains(redis.Command, "--appendonly no") {
-		t.Fatalf("Redis command does not configure password authentication and ephemeral storage: %q", redis.Command)
+	if strings.Contains(redis.Command, "requirepass") || !strings.Contains(redis.Command, "--appendonly no") {
+		t.Fatalf("Redis command should disable auth and persistence: %q", redis.Command)
 	}
 }
 
