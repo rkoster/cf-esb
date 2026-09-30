@@ -21,7 +21,10 @@ type capi interface {
 	FindServiceApp(context.Context, string) (*resource.App, error)
 	CreateServiceApp(context.Context, string, string, serviceconfig.Service) (*resource.App, error)
 	StartServiceApp(context.Context, string) error
-	DeleteServiceApp(context.Context, string) error
+	DeleteServiceApp(context.Context, string) (string, error)
+	RememberServiceDeletionJob(context.Context, string, string) error
+	ServiceDeletionJob(*resource.App) string
+	ServiceDeletionStatus(context.Context, string) (string, string, error)
 	CreatePolicy(context.Context, string, string, int) error
 	DeletePoliciesForDestination(context.Context, string, int) error
 	DeletePolicy(context.Context, string, string, int) error
@@ -388,30 +391,82 @@ func (c *cloudFoundry) StartServiceApp(ctx context.Context, guid string) error {
 	return err
 }
 
-func (c *cloudFoundry) DeleteServiceApp(ctx context.Context, guid string) error {
-	_, err := c.client.Applications.Delete(ctx, guid)
-	if err != nil {
-		return err
+func (c *cloudFoundry) DeleteServiceApp(ctx context.Context, guid string) (string, error) {
+	jobGUID, err := c.client.Applications.Delete(ctx, guid)
+	if err != nil && resource.IsNotFoundError(err) {
+		return "", nil
 	}
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-	for {
-		app, err := c.client.Applications.Get(ctx, guid)
-		if err != nil {
-			if resource.IsNotFoundError(err) {
-				return nil
-			}
-			return err
-		}
-		if app == nil {
+	return jobGUID, err
+}
+
+func (c *cloudFoundry) RememberServiceDeletionJob(ctx context.Context, appGUID, jobGUID string) error {
+	app, err := c.client.Applications.Get(ctx, appGUID)
+	if err != nil {
+		if resource.IsNotFoundError(err) {
 			return nil
 		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
+		return err
+	}
+	metadata := app.Metadata
+	if metadata == nil {
+		metadata = &resource.Metadata{}
+	}
+	annotations := copyAnnotations(metadata.Annotations)
+	annotations[serviceDeletionJobAnnotation] = &jobGUID
+	_, err = c.client.Applications.Update(ctx, appGUID, appMetadataUpdate(app, metadata.Labels, annotations))
+	return err
+}
+
+func (c *cloudFoundry) ServiceDeletionStatus(ctx context.Context, jobGUID string) (string, string, error) {
+	job, err := c.client.Jobs.Get(ctx, jobGUID)
+	if err != nil {
+		return "", "", err
+	}
+	state, description := serviceDeletionJobStatus(job)
+	return state, description, nil
+}
+
+func serviceDeletionJobStatus(job *resource.Job) (string, string) {
+	if job == nil {
+		return "in progress", "waiting for Cloud Foundry to delete service app"
+	}
+	description := strings.TrimSpace(jobErrorDescription(job.Errors))
+	switch job.State {
+	case resource.JobStateComplete:
+		return "succeeded", "service app deletion completed"
+	case resource.JobStateFailed:
+		if description == "" {
+			description = "Cloud Foundry service app deletion job failed"
+		}
+		return "failed", description
+	default:
+		if description == "" {
+			description = "waiting for Cloud Foundry to delete service app"
+		}
+		return "in progress", description
+	}
+}
+
+const serviceDeletionJobAnnotation = "cf-esb.deprovision-job"
+
+func (c *cloudFoundry) ServiceDeletionJob(app *resource.App) string {
+	if app == nil || app.Metadata == nil {
+		return ""
+	}
+	if value := app.Metadata.Annotations[serviceDeletionJobAnnotation]; value != nil {
+		return *value
+	}
+	return ""
+}
+
+func jobErrorDescription(errors []resource.CloudFoundryError) string {
+	details := make([]string, 0, len(errors))
+	for _, cfErr := range errors {
+		if detail := strings.TrimSpace(cfErr.Detail); detail != "" {
+			details = append(details, detail)
 		}
 	}
+	return strings.Join(details, "; ")
 }
 
 func (c *cloudFoundry) ResolveSpace(ctx context.Context, orgName, spaceName string) (string, error) {
@@ -574,6 +629,14 @@ func appMetadataUpdate(app *resource.App, labels, annotations map[string]*string
 		Name:     app.Name,
 		Metadata: &resource.Metadata{Labels: labels, Annotations: annotations},
 	}
+}
+
+func copyAnnotations(existing map[string]*string) map[string]*string {
+	annotations := make(map[string]*string, len(existing)+1)
+	for key, value := range existing {
+		annotations[key] = value
+	}
+	return annotations
 }
 
 type networkPolicy struct {

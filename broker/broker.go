@@ -17,6 +17,7 @@ import (
 )
 
 const osbAPIVersion = "2.16"
+const appStartOperation = "app-start"
 
 var instanceIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$`)
 
@@ -105,7 +106,7 @@ func (b *Broker) provision(w http.ResponseWriter, r *http.Request) {
 				writeError(w, http.StatusInternalServerError, "CFError", err.Error())
 				return
 			}
-			writeJSON(w, http.StatusAccepted, map[string]string{"operation": "app-start"})
+			writeJSON(w, http.StatusAccepted, map[string]string{"operation": appStartOperation})
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{})
@@ -124,7 +125,7 @@ func (b *Broker) provision(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnprocessableEntity, "AsyncRequired", "service image staging is asynchronous; retry with accepts_incomplete=true")
 		return
 	}
-	writeJSON(w, http.StatusAccepted, map[string]string{"operation": "app-start"})
+	writeJSON(w, http.StatusAccepted, map[string]string{"operation": appStartOperation})
 }
 
 func (b *Broker) deprovision(w http.ResponseWriter, r *http.Request) {
@@ -143,18 +144,48 @@ func (b *Broker) deprovision(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if app == nil {
-		writeJSON(w, http.StatusGone, map[string]any{})
+		writeJSON(w, http.StatusOK, map[string]any{})
+		return
+	}
+	if jobGUID := b.capi.ServiceDeletionJob(app); jobGUID != "" {
+		state, _, statusErr := b.capi.ServiceDeletionStatus(r.Context(), jobGUID)
+		if statusErr != nil {
+			writeError(w, http.StatusInternalServerError, "CFError", statusErr.Error())
+			return
+		}
+		switch state {
+		case "succeeded":
+			writeJSON(w, http.StatusOK, map[string]any{})
+			return
+		case "failed":
+			// Allow a new CAPI deletion job after a prior job failed.
+		default:
+			writeJSON(w, http.StatusAccepted, map[string]string{"operation": jobGUID})
+			return
+		}
+	}
+	if r.URL.Query().Get("accepts_incomplete") != "true" {
+		writeError(w, http.StatusUnprocessableEntity, "AsyncRequired", "service app deletion is asynchronous; retry with accepts_incomplete=true")
 		return
 	}
 	if err = b.capi.DeletePoliciesForDestination(r.Context(), app.GUID, service.Port); err != nil {
 		writeError(w, http.StatusInternalServerError, "CFError", err.Error())
 		return
 	}
-	if err = b.capi.DeleteServiceApp(r.Context(), app.GUID); err != nil {
+	jobGUID, err := b.capi.DeleteServiceApp(r.Context(), app.GUID)
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, "CFError", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{})
+	if jobGUID == "" {
+		writeJSON(w, http.StatusOK, map[string]any{})
+		return
+	}
+	if err = b.capi.RememberServiceDeletionJob(r.Context(), app.GUID, jobGUID); err != nil {
+		writeError(w, http.StatusInternalServerError, "CFError", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]string{"operation": jobGUID})
 }
 
 func (b *Broker) lastOperation(w http.ResponseWriter, r *http.Request) {
@@ -166,13 +197,31 @@ func (b *Broker) lastOperation(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if operation := r.URL.Query().Get("operation"); operation != "" && operation != appStartOperation {
+		state, description, err := b.capi.ServiceDeletionStatus(r.Context(), operation)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "CFError", err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, lastOperationResponse{State: state, Description: description})
+		return
+	}
 	app, err := b.capi.FindServiceApp(r.Context(), appName(service.ID, chi.URLParam(r, "instance_id")))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "CFError", err.Error())
 		return
 	}
 	if app == nil {
-		writeError(w, http.StatusNotFound, "NotFound", "service instance not found")
+		writeJSON(w, http.StatusOK, lastOperationResponse{State: "succeeded", Description: "service app deletion completed"})
+		return
+	}
+	if operation := r.URL.Query().Get("operation"); operation != "" && operation != appStartOperation {
+		state, description, err := b.capi.ServiceDeletionStatus(r.Context(), operation)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "CFError", err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, lastOperationResponse{State: state, Description: description})
 		return
 	}
 	state, description := "in progress", "waiting for service app to start"

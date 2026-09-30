@@ -8,6 +8,7 @@ CF-ESB is a lightweight Open Service Broker for ephemeral services running as Cl
 - Binding installs a TCP network policy from the client app to PostgreSQL on the configured port and returns the static credentials configured in YAML.
 - Unbinding removes the matching policy using binding-ID metadata stored on the CF service app. This lookup is derived from Cloud Foundry app metadata, so the broker keeps no local binding table. The broker assumes one binding per app/service-instance pair.
 - Deprovisioning removes policies targeting the instance and deletes its app.
+- Deprovisioning requires OSB `accepts_incomplete=true`; it removes policies, starts asynchronous CAPI app deletion, returns the CAPI job GUID as the OSB operation, and reports job progress/failure through `last_operation`.
 - PostgreSQL uses a portless Cloud Foundry internal route for service-discovery DNS only; it is not exposed on a public route. Bound apps connect directly to the app over TCP/5432 under the network policy.
 
 The static demo password is intentionally shared across PostgreSQL instances. This is suitable only for labs and development environments. Change it in `config/services.yml` before deploying in any environment where that default is not acceptable.
@@ -76,5 +77,6 @@ curl -u "$BROKER_USERNAME:$BROKER_PASSWORD" "https://<broker-route>/v2/catalog"
 - Static credentials are shared by all instances of the configured service.
 - One app may have only one binding to a given service instance.
 - New service app Docker package/build staging uses OSB `202 Accepted`; callers must send `accepts_incomplete=true` and poll `last_operation` until the app is started.
+- Service deprovisioning is asynchronous and likewise requires `accepts_incomplete=true`; poll `last_operation` with the returned operation until deletion succeeds or fails.
 - The foundation must provide CF internal app service discovery (for `apps.internal`) to resolve service endpoints, and CF Networking to enforce app-to-app policies.
 - CAPI network policy endpoints require a foundation with CF Networking enabled and appropriate policy-server authorization.

@@ -60,6 +60,39 @@ func TestServiceProcessUpdateKeepsImageDefaultWhenCommandIsEmpty(t *testing.T) {
 	}
 }
 
+func TestServiceDeletionJobStatus(t *testing.T) {
+	tests := []struct {
+		name            string
+		job             *resource.Job
+		wantState       string
+		wantDescription string
+	}{
+		{
+			name:      "processing",
+			job:       &resource.Job{State: resource.JobStateProcessing},
+			wantState: "in progress", wantDescription: "waiting for Cloud Foundry to delete service app",
+		},
+		{
+			name:      "complete",
+			job:       &resource.Job{State: resource.JobStateComplete},
+			wantState: "succeeded", wantDescription: "service app deletion completed",
+		},
+		{
+			name:      "failed includes CAPI reason",
+			job:       &resource.Job{State: resource.JobStateFailed, Errors: []resource.CloudFoundryError{{Detail: "app deletion failed"}}},
+			wantState: "failed", wantDescription: "app deletion failed",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			state, description := serviceDeletionJobStatus(test.job)
+			if state != test.wantState || description != test.wantDescription {
+				t.Fatalf("status = (%q, %q), want (%q, %q)", state, description, test.wantState, test.wantDescription)
+			}
+		})
+	}
+}
+
 func TestGarageServiceHostUsesMappedInternalRouteDNSName(t *testing.T) {
 	app := &resource.App{Name: "cfe-garage-instance-guid"}
 	service := config.Service{
