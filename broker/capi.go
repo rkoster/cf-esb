@@ -420,6 +420,9 @@ func (c *cloudFoundry) RememberServiceDeletionJob(ctx context.Context, appGUID, 
 func (c *cloudFoundry) ServiceDeletionStatus(ctx context.Context, jobGUID string) (string, string, error) {
 	job, err := c.client.Jobs.Get(ctx, jobGUID)
 	if err != nil {
+		if resource.IsNotFoundError(err) {
+			return "failed", "Cloud Foundry deletion job is no longer available; retry deprovision", nil
+		}
 		return "", "", err
 	}
 	state, description := serviceDeletionJobStatus(job)

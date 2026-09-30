@@ -299,8 +299,16 @@ func TestDeprovisionReturnsAsyncAndLastOperationTracksDeleteJob(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &operation); err != nil {
 		t.Fatal(err)
 	}
+	if operation.State != "in progress" {
+		t.Fatalf("completed job with app present last_operation state = %q, want in progress", operation.State)
+	}
+	delete(cf.apps, app.Name)
+	response = request(t, handler, http.MethodGet, path+"/last_operation"+operationQuery, "")
+	if err := json.Unmarshal(response.Body.Bytes(), &operation); err != nil {
+		t.Fatal(err)
+	}
 	if operation.State != "succeeded" {
-		t.Fatalf("completed last_operation state = %q, want succeeded", operation.State)
+		t.Fatalf("removed app last_operation state = %q, want succeeded", operation.State)
 	}
 }
 

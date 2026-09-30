@@ -181,10 +181,10 @@ func (b *Broker) deprovision(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{})
 		return
 	}
-	if err = b.capi.RememberServiceDeletionJob(r.Context(), app.GUID, jobGUID); err != nil {
-		writeError(w, http.StatusInternalServerError, "CFError", err.Error())
-		return
-	}
+	// The job GUID is returned directly as the OSB operation. Persist it on the
+	// app for retry safety, but do not turn an already-enqueued delete into a
+	// synchronous failure if metadata update races with app removal.
+	_ = b.capi.RememberServiceDeletionJob(r.Context(), app.GUID, jobGUID)
 	writeJSON(w, http.StatusAccepted, map[string]string{"operation": jobGUID})
 }
 
@@ -197,22 +197,17 @@ func (b *Broker) lastOperation(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if operation := r.URL.Query().Get("operation"); operation != "" && operation != appStartOperation {
-		state, description, err := b.capi.ServiceDeletionStatus(r.Context(), operation)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "CFError", err.Error())
-			return
-		}
-		writeJSON(w, http.StatusOK, lastOperationResponse{State: state, Description: description})
-		return
-	}
 	app, err := b.capi.FindServiceApp(r.Context(), appName(service.ID, chi.URLParam(r, "instance_id")))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "CFError", err.Error())
 		return
 	}
 	if app == nil {
-		writeJSON(w, http.StatusOK, lastOperationResponse{State: "succeeded", Description: "service app deletion completed"})
+		if operation := r.URL.Query().Get("operation"); operation != "" && operation != appStartOperation {
+			writeJSON(w, http.StatusOK, lastOperationResponse{State: "succeeded", Description: "service app deletion completed"})
+			return
+		}
+		writeError(w, http.StatusNotFound, "NotFound", "service instance not found")
 		return
 	}
 	if operation := r.URL.Query().Get("operation"); operation != "" && operation != appStartOperation {
@@ -220,6 +215,9 @@ func (b *Broker) lastOperation(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "CFError", err.Error())
 			return
+		}
+		if state == "succeeded" {
+			state, description = "in progress", "Cloud Foundry delete job completed; waiting for service app removal"
 		}
 		writeJSON(w, http.StatusOK, lastOperationResponse{State: state, Description: description})
 		return
