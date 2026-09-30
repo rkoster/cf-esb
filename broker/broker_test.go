@@ -152,7 +152,7 @@ func TestCatalogListsConfiguredPostgresService(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
 		t.Fatal(err)
 	}
-	if len(result.Services) != 2 || result.Services[0].ID != "postgres" || result.Services[1].ID != "garage" {
+	if len(result.Services) != 3 || result.Services[0].ID != "postgres" || result.Services[1].ID != "redis" || result.Services[2].ID != "garage" {
 		t.Fatalf("catalog services = %#v", result.Services)
 	}
 }
@@ -206,6 +206,30 @@ func TestBindAndUnbindUseStaticCredentialsAndPolicy(t *testing.T) {
 	}
 	if cf.policies["client-app-guid:postgres-app-guid:5432"] {
 		t.Fatalf("policy was not removed: %#v", cf.policies)
+	}
+}
+
+func TestRedisBindReturnsAuthenticatedURIAndTCPPolicy(t *testing.T) {
+	broker, cf := testBroker(t)
+	app := &resource.App{Name: "cfe-redis-instance-123", State: "STARTED", Resource: resource.Resource{GUID: "redis-app-guid"}}
+	cf.apps[app.Name] = app
+	handler := Handler(broker, "", "")
+	body := `{"service_id":"redis","plan_id":"ephemeral","bind_resource":{"app_guid":"client-app-guid"}}`
+	response := request(t, handler, http.MethodPut, "/v2/service_instances/instance-123/service_bindings/binding-redis", body)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("bind status = %d, body = %s", response.Code, response.Body)
+	}
+	var result bindingResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	wantHost := "cfe-redis-instance-123.apps.internal"
+	wantURI := "redis://:cf-esb-demo-redis-password@cfe-redis-instance-123.apps.internal:6379/0"
+	if result.Credentials["host"] != wantHost || result.Credentials["port"] != float64(6379) || result.Credentials["uri"] != wantURI {
+		t.Fatalf("Redis binding credentials = %#v", result.Credentials)
+	}
+	if !cf.policies["client-app-guid:redis-app-guid:6379"] {
+		t.Fatalf("Redis TCP/6379 policy was not installed: %#v", cf.policies)
 	}
 }
 

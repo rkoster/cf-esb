@@ -26,6 +26,31 @@ services:
         password: cf-esb-demo-password
       uri_template: postgres://postgres:cf-esb-demo-password@{{.Host}}:{{.Port}}/postgres?sslmode=disable
 
+  - id: redis
+    name: Redis
+    description: Ephemeral Redis key-value store running as a Cloud Foundry app.
+    bindable: true
+    tags: [redis, key-value, ephemeral]
+    image: docker.io/library/redis:7-alpine
+    hostname_template: "{{.RouteHost}}"
+    internal_domain: apps.internal
+    port: 6379
+    memory_mb: 512
+    disk_mb: 1024
+    environment:
+      REDIS_PASSWORD: cf-esb-demo-redis-password
+    command: >-
+      redis-server --bind 0.0.0.0 --protected-mode yes --requirepass "$REDIS_PASSWORD" --save "" --appendonly no
+    plans:
+      - id: ephemeral
+        name: ephemeral
+        description: An ephemeral Redis instance for development and demos.
+        free: true
+    binding:
+      credentials:
+        password: cf-esb-demo-redis-password
+      uri_template: redis://:cf-esb-demo-redis-password@{{.Host}}:{{.Port}}/0
+
   - id: garage
     name: Garage
     description: Ephemeral single-node S3-compatible object storage running as a Cloud Foundry app.

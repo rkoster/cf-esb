@@ -74,6 +74,31 @@ func TestLoadGarageServiceConfiguration(t *testing.T) {
 	}
 }
 
+func TestLoadRedisServiceConfiguration(t *testing.T) {
+	file, err := os.Open("services.yml")
+	if err != nil {
+		t.Fatalf("open services.yml: %v", err)
+	}
+	defer file.Close()
+	services, err := Load(file)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	redis, ok := services.FindService("redis")
+	if !ok {
+		t.Fatal("redis service missing")
+	}
+	if redis.Image != "docker.io/library/redis:7-alpine" || redis.Port != 6379 || redis.DirectInternalDNS {
+		t.Fatalf("unexpected Redis runtime configuration: %#v", redis)
+	}
+	if redis.Environment["REDIS_PASSWORD"] != redis.Binding.Credentials["password"] {
+		t.Fatal("Redis server password and binding password do not match")
+	}
+	if !strings.Contains(redis.Command, `--requirepass "$REDIS_PASSWORD"`) || !strings.Contains(redis.Command, "--appendonly no") {
+		t.Fatalf("Redis command does not configure password authentication and ephemeral storage: %q", redis.Command)
+	}
+}
+
 func TestLoadRejectsMissingBindingConfiguration(t *testing.T) {
 	input := `services:
   - id: postgres
