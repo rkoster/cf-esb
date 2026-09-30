@@ -251,7 +251,8 @@ func (c *cloudFoundry) ensureRouteBackedServiceHost(ctx context.Context, app *re
 	if service.InternalDomain == "" {
 		return "", fmt.Errorf("service %q requires internal_domain for app service discovery", service.ID)
 	}
-	// PostgreSQL uses its TCP listener port on its internal service route.
+	// The internal route is a DNS registration only. PostgreSQL traffic itself
+	// is direct app-to-app TCP controlled by the network policy on service.Port.
 	options := cfclient.NewRouteListOptions()
 	options.AppGUIDs.EqualTo(app.GUID)
 	routes, err := c.client.Routes.ListAll(ctx, options)
@@ -263,7 +264,7 @@ func (c *cloudFoundry) ensureRouteBackedServiceHost(ctx context.Context, app *re
 		return "", err
 	}
 	for _, route := range routes {
-		if route.Host != app.Name || route.Relationships.Space.Data == nil || route.Relationships.Space.Data.GUID != c.spaceGUID || route.Port == nil || route.Relationships.Domain.Data == nil {
+		if route.Host != app.Name || route.Relationships.Space.Data == nil || route.Relationships.Space.Data.GUID != c.spaceGUID || route.Port != nil || route.Relationships.Domain.Data == nil {
 			continue
 		}
 		for _, domain := range domains {
@@ -283,15 +284,12 @@ func (c *cloudFoundry) ensureRouteBackedServiceHost(ctx context.Context, app *re
 	if internalDomain == nil {
 		return "", fmt.Errorf("CF internal domain %q was not found", service.InternalDomain)
 	}
-	host := app.Name
-	port := intPointer(service.Port)
-	createRoute, destination := serviceInternalRoute(host, c.spaceGUID, internalDomain.GUID, app.GUID, port)
+	host, createRoute, destination := routeBackedDiscoveryRoute(app, service, c.spaceGUID, internalDomain.GUID)
 	createdRoute, err := c.client.Routes.Create(ctx, createRoute)
 	if err != nil {
 		return "", err
 	}
-	_, err = c.client.Routes.InsertDestinations(ctx, createdRoute.GUID, []*resource.RouteDestinationInsertOrReplace{destination})
-	if err != nil {
+	if _, err = c.client.Routes.InsertDestinations(ctx, createdRoute.GUID, []*resource.RouteDestinationInsertOrReplace{destination}); err != nil {
 		return "", err
 	}
 	return host + "." + service.InternalDomain, nil
@@ -341,6 +339,12 @@ func (c *cloudFoundry) ensureInternalDiscoveryRoute(ctx context.Context, app *re
 		return "", err
 	}
 	return host + "." + service.InternalDomain, nil
+}
+
+func routeBackedDiscoveryRoute(app *resource.App, service serviceconfig.Service, spaceGUID, domainGUID string) (string, *resource.RouteCreate, *resource.RouteDestinationInsertOrReplace) {
+	host := app.Name
+	route, destination := internalDiscoveryRoute(host, spaceGUID, domainGUID, app.GUID)
+	return host + "." + service.InternalDomain, route, destination
 }
 
 func internalDiscoveryRoute(host, spaceGUID, domainGUID, appGUID string) (*resource.RouteCreate, *resource.RouteDestinationInsertOrReplace) {

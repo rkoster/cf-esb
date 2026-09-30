@@ -120,6 +120,26 @@ func TestInternalDiscoveryRouteIsPortlessAndMapsApp(t *testing.T) {
 	}
 }
 
+func TestPostgresRouteBackedDiscoveryUsesPortlessInternalDNS(t *testing.T) {
+	app := &resource.App{Name: "cfe-postgres-instance-guid", Resource: resource.Resource{GUID: "app-guid"}}
+	service := config.Service{
+		ID: "postgres", Port: 5432, HostnameTemplate: "{{.RouteHost}}", InternalDomain: "apps.internal",
+	}
+	host, route, destination := routeBackedDiscoveryRoute(app, service, "space-guid", "domain-guid")
+	if want := "cfe-postgres-instance-guid.apps.internal"; host != want {
+		t.Fatalf("PostgreSQL discovery host = %q, want %q", host, want)
+	}
+	if route.Port != nil {
+		t.Fatalf("PostgreSQL discovery route port = %d, want nil; service TCP port remains %d", *route.Port, service.Port)
+	}
+	if destination.Port != nil || destination.Protocol != nil {
+		t.Fatalf("PostgreSQL DNS destination should omit listener port and protocol: %#v", destination)
+	}
+	if service.Port != 5432 {
+		t.Fatalf("PostgreSQL listener port = %d, want 5432", service.Port)
+	}
+}
+
 func TestRememberBindingUpdatePreservesAppName(t *testing.T) {
 	app := &resource.App{
 		Name: "cfe-garage-instance-guid",
