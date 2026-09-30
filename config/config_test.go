@@ -57,7 +57,7 @@ func TestLoadGarageServiceConfiguration(t *testing.T) {
 	if !ok {
 		t.Fatal("garage service missing")
 	}
-	if garage.Image != "ghcr.io/rkoster/cf-esb-garage:2.3.0" || garage.Port != 3900 || !garage.DirectInternalDNS {
+	if garage.Image != "ghcr.io/rkoster/cf-esb-garage:2.3.1" || garage.Port != 3900 || !garage.DirectInternalDNS {
 		t.Fatalf("unexpected Garage runtime configuration: %#v", garage)
 	}
 	if garage.Environment["GARAGE_CONFIG_FILE"] != "/etc/garage.toml" {

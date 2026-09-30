@@ -31,7 +31,7 @@ services:
     description: Ephemeral single-node S3-compatible object storage running as a Cloud Foundry app.
     bindable: true
     tags: [s3, object-storage, ephemeral]
-    image: ghcr.io/rkoster/cf-esb-garage:2.3.0
+    image: ghcr.io/rkoster/cf-esb-garage:2.3.1
     hostname_template: "{{.AppName}}"
     internal_domain: apps.internal
     direct_internal_dns: true

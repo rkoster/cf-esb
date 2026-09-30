@@ -5,4 +5,5 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /garage-entr
 
 FROM docker.io/dxflrs/garage:v2.3.0
 COPY --from=entrypoint-builder /garage-entrypoint /garage-entrypoint
+EXPOSE 3900
 ENTRYPOINT ["/garage-entrypoint"]
