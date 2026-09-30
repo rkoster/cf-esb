@@ -214,7 +214,7 @@ func TestRedisBindReturnsAuthenticatedURIAndTCPPolicy(t *testing.T) {
 	app := &resource.App{Name: "cfe-redis-instance-123", State: "STARTED", Resource: resource.Resource{GUID: "redis-app-guid"}}
 	cf.apps[app.Name] = app
 	handler := Handler(broker, "", "")
-	body := `{"service_id":"redis","plan_id":"ephemeral","bind_resource":{"app_guid":"client-app-guid"}}`
+	body := `{"service_id":"redis","plan_id":"redis-ephemeral","bind_resource":{"app_guid":"client-app-guid"}}`
 	response := request(t, handler, http.MethodPut, "/v2/service_instances/instance-123/service_bindings/binding-redis", body)
 	if response.Code != http.StatusCreated {
 		t.Fatalf("bind status = %d, body = %s", response.Code, response.Body)

@@ -42,7 +42,7 @@ services:
     command: >-
       redis-server --bind 0.0.0.0 --protected-mode yes --requirepass "$REDIS_PASSWORD" --save "" --appendonly no
     plans:
-      - id: ephemeral
+      - id: redis-ephemeral
         name: ephemeral
         description: An ephemeral Redis instance for development and demos.
         free: true

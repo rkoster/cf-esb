@@ -91,6 +91,9 @@ func TestLoadRedisServiceConfiguration(t *testing.T) {
 	if redis.Image != "docker.io/library/redis:7-alpine" || redis.Port != 6379 || redis.DirectInternalDNS {
 		t.Fatalf("unexpected Redis runtime configuration: %#v", redis)
 	}
+	if len(redis.Plans) != 1 || redis.Plans[0].ID != "redis-ephemeral" {
+		t.Fatalf("unexpected Redis plan configuration: %#v", redis.Plans)
+	}
 	if redis.Environment["REDIS_PASSWORD"] != redis.Binding.Credentials["password"] {
 		t.Fatal("Redis server password and binding password do not match")
 	}
