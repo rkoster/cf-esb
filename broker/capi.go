@@ -269,7 +269,7 @@ func (c *cloudFoundry) ensureRouteBackedServiceHost(ctx context.Context, app *re
 		}
 		for _, domain := range domains {
 			if domain.GUID == route.Relationships.Domain.Data.GUID && domain.Name == service.InternalDomain && domain.Internal {
-				return route.Host + "." + domain.Name, nil
+				return routeBackedServiceHostname(route.Host, domain.Name), nil
 			}
 		}
 	}
@@ -292,7 +292,15 @@ func (c *cloudFoundry) ensureRouteBackedServiceHost(ctx context.Context, app *re
 	if _, err = c.client.Routes.InsertDestinations(ctx, createdRoute.GUID, []*resource.RouteDestinationInsertOrReplace{destination}); err != nil {
 		return "", err
 	}
-	return host + "." + service.InternalDomain, nil
+	return routeBackedServiceHostname(host, service.InternalDomain), nil
+}
+
+func routeBackedServiceHostname(host, domain string) string {
+	suffix := "." + domain
+	for strings.HasSuffix(host, suffix) {
+		host = strings.TrimSuffix(host, suffix)
+	}
+	return host + suffix
 }
 
 func (c *cloudFoundry) ensureInternalDiscoveryRoute(ctx context.Context, app *resource.App, service serviceconfig.Service) (string, error) {

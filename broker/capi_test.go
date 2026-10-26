@@ -140,6 +140,18 @@ func TestPostgresRouteBackedDiscoveryUsesPortlessInternalDNS(t *testing.T) {
 	}
 }
 
+func TestRouteBackedServiceHostnameDoesNotDuplicateInternalDomain(t *testing.T) {
+	for _, host := range []string{
+		"cfe-postgres-instance-guid",
+		"cfe-postgres-instance-guid.apps.internal",
+		"cfe-postgres-instance-guid.apps.internal.apps.internal",
+	} {
+		if got, want := routeBackedServiceHostname(host, "apps.internal"), "cfe-postgres-instance-guid.apps.internal"; got != want {
+			t.Errorf("routeBackedServiceHostname(%q) = %q, want %q", host, got, want)
+		}
+	}
+}
+
 func TestRememberBindingUpdatePreservesAppName(t *testing.T) {
 	app := &resource.App{
 		Name: "cfe-garage-instance-guid",
